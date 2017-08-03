@@ -1,33 +1,35 @@
 # TAIWAN POLICE - using GBM to multiclass triads
 # 
 # change this to your working directory
+
 setwd("/Users/jse/DEsktop/TAIWAN POLICE")
+
 library(gbm)
 library(ggplot2)
 
-
-## LOAD
+## LOAD id file
 id = read.csv("id.csv")
 dim(id)
 id[1:4,]
 summary(id)
 
+## LOAD case file
 crp = read.csv("CRP.csv",encoding="utf-8")
 dim(crp)
 crp[1:4,]
 as.character(crp[4,])
 summary(crp)  # took it as levels ok
-
-
-### LEFT JOIN
+df[1,]
 colnames(crp)[3] <- c("ID")
-df <- merge(x = crp, y = id, by = "ID", all.y = TRUE)
+
+
+### LEFT JOIN  id.csv + crp.csv
+df <- merge(x = crp[!duplicated(crp$ID),], y = id, by = "ID", all.y = TRUE)
 dim(df)
 dim(id)
 dim(crp)  # OK
 df [1:22,1:9] 
 length(unique(id$ID))
-length(unique(crp$ID))  // some people have 2 cases...
 
 
 ## VIZ
@@ -44,15 +46,17 @@ g
 
 
 # PREPARE
-df <- id[,-c(1)] # remove index
+df <- df[,-c(1)] # remove index
+df <- df[,-c(16)] # remove address too many levels GBM cannot handle
 df <- df[!(df$target=="Non"),]
+df$Group <- c()  # data leak
+df$caseno <- c()  # data leak
 dim(df)
 df[1:3,]
-df <- df[sample(nrow(df)),]  # shuffle
-summary(df)
 
 
 #SPLIT
+df <- df[sample(nrow(df)),]  # shuffle
 df.train <- df[1:150,]
 df.test <- df[151:329,]
 
@@ -66,16 +70,23 @@ BST = gbm(target~.,data=df.train,
          shrinkage=0.005)
 
 summary(BST)
+
+df.train$target
+
 predBST = predict(BST,n.trees=200, newdata=df.test,type='response')
 
 predBST[1:6,,]
+
 df.test[1:6,]
+
 
 ## COMPUTE PRECISION
 solution <- as.factor(colnames(predBST)[apply(predBST,1,which.max)])
 df.test$target
-
 solution.num <- rep(0,length(solution))
 solution.num[as.character(solution) == as.character(df.test$target)] <- 1
 mean(solution.num)
 head(predBST)
+
+# id.csv + crp.csv (first case only)  46.9%
+# id.csv            40%
